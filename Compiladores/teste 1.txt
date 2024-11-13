@@ -1,0 +1,74 @@
+Programa
+  Decl
+    Tipo: inteiro
+    IdLista
+      ID (a)
+      ID (b)
+      ID (c)
+    Decl
+      Tipo: real
+      IdLista
+        ID (comprimento)
+        ID (altura)
+  Corpo
+    Comando
+      Atribuição
+        ID (a)
+        Expressao
+          NUM (-5.000000)
+      Atribuição
+        ID (b)
+        Expressao
+          NUM (10.000000)
+      Condicao
+        Expressao
+          ID (a)
+          MENOR (<)
+          ID (b)
+        Comando
+          Mostrar
+            Expressao
+              ID (a)
+        Comando
+          Mostrar
+            Expressao
+              ID (b)
+      Condicao
+        Expressao
+          ID (a)
+          MENOR (<)
+          ID (b)
+        Comando
+          Mostrar
+            Expressao
+              ID (a)
+      Enquanto
+        Expressao
+          ID (a)
+          MENOR (<)
+          NUM (10.000000)
+        Comando
+          Atribuição
+            ID (a)
+            Expressao
+              ID (a)
+              MAIS (+)
+              NUM (1.000000)
+          Mostrar
+            Expressao
+              ID (a)
+      Repeticao
+        Comando
+          Atribuição
+            ID (a)
+            Expressao
+              ID (a)
+              MENOS (-)
+              NUM (1.000000)
+          Mostrar
+            Expressao
+              ID (a)
+        Expressao
+          ID (a)
+          IGUAL IGUAL (==)
+          NUM (5.000000)

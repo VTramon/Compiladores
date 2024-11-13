@@ -2,6 +2,7 @@
 #include <string>
 #include <fstream>
 #include <vector>
+#include <unordered_map>
 
 using namespace std;
 
@@ -32,7 +33,10 @@ struct TokenValue {
     double value;
 };
 
+// Tabela de símbolos: armazena o tipo de cada variável
+unordered_map<string, string> tabelaDeSimbolos;  // variável -> tipo
 
+// Estrutura para a árvore sintática
 struct ArvoreNode {
     string type;
     string value;
@@ -45,7 +49,7 @@ ArvoreNode* Programa();
 ArvoreNode* Declaracao();
 ArvoreNode* Tipo();
 ArvoreNode* IdLista();
-ArvoreNode* Id();
+ArvoreNode* Id(string escopo);
 ArvoreNode* Corpo();
 ArvoreNode* Comando();
 ArvoreNode* Atribuicao();
@@ -58,13 +62,11 @@ ArvoreNode* Expressao();
 ArvoreNode* ExpressaoLogica();
 ArvoreNode* ExpressaoRelacional();
 ArvoreNode* ExpressaoAritimetica();
+void nextStep();
+
 
 TokenValue getNextToken();
 void printToken(TokenValue tok);
-
-
-
-
 
 string input;
 size_t posicao = 0;
@@ -78,7 +80,7 @@ void nextStep() {
 
 // Função de erro para imprimir mensagem e finalizar o programa quando a sintaxe está incorreta
 void error(string msg) {
-    cout << "Erro de sintaxe: " << msg << " na posição " << posicao << endl;
+    cout << "Erro: " << msg << " na posição " << posicao << endl;
     exit(1);
 }
 
@@ -111,6 +113,48 @@ void printArvore(ArvoreNode* node, int depth = 0) {
     }
 }
 
+// Função para verificar se uma variável foi declarada
+void verificarDeclaracao(string id) {
+    if (tabelaDeSimbolos.find(id) == tabelaDeSimbolos.end()) {
+        error("Variável '" + id + "' não foi declarada.");
+    }
+}
+
+// Função para verificar se uma variável já foi declarada
+void verificarRedeclaracao(string id) {
+    if (tabelaDeSimbolos.find(id) != tabelaDeSimbolos.end()) {
+        error("Variável '" + id + "' já foi declarada.");
+    }
+}
+
+// Função para verificar se a expressão é booleana
+void verificarExpressaoBooleana(ArvoreNode* expr) {
+    if (expr->type != "Expressao" ||
+        (expr->value != "verdadeiro" && expr->value != "falso" && expr->type != "ExpressaoLogica")) {
+        error("A expressão de controle precisa ser booleana.");
+    }
+}
+
+void verificarTiposExpressao(ArvoreNode* expr) {
+
+}
+
+// Função para verificar o tipo da expressão na atribuição
+void verificarAtribuicao(string tipoVar, ArvoreNode* expressao) {
+    string tipoExpr = expressao->type;
+
+    if (tipoExpr == "Expressao") {
+        tipoExpr = expressao->children[0]->type;
+    }
+
+    if (tipoVar == "inteiro" && (tipoExpr != "NUM" && tipoExpr != "ID")) {
+        error("Tipo incompatível: Esperado inteiro na expressão.");
+    }
+
+    if (tipoVar == "real" && (tipoExpr != "NUM" && tipoExpr != "ID")) {
+        error("Tipo incompatível: Esperado real ou inteiro na expressão. " + tipoExpr + " --");
+    }
+}
 
 ArvoreNode* Programa() {
     ArvoreNode* node = new ArvoreNode("Programa");
@@ -130,47 +174,57 @@ ArvoreNode* Programa() {
 ArvoreNode* Declaracao() {
     ArvoreNode* node = new ArvoreNode("Decl");
 
-    if (currentToken.token == T_INTEIRO || currentToken.token == T_REAL) {
+    if (currentToken.token != T_INTEIRO && currentToken.token != T_REAL) {
+        cout << to_string(currentToken.token);
+        error("Esperado declaração de tipo (inteiro ou real)");
+    }
+    while (currentToken.token == T_INTEIRO || currentToken.token == T_REAL) {
         node->children.push_back(Tipo());
 
         nextStep();
 
         node->children.push_back(IdLista());
         match(T_PONTO_VIRGULA);
+    }
 
-        if (currentToken.token == T_INTEIRO || currentToken.token == T_REAL) {
+        /*if (currentToken.token == T_INTEIRO || currentToken.token == T_REAL) {
             node->children.push_back(Declaracao());
-        }
-    }
-    else {
-        error("Esperado declaração de tipo (inteiro ou real)");
-    }
+        }*/
+
 
     return node;
 }
 
 ArvoreNode* Tipo() {
     ArvoreNode* node = new ArvoreNode(currentToken.token == T_INTEIRO ? "Tipo: inteiro" : "Tipo: real");
+
     return node;
 }
 
 ArvoreNode* IdLista() {
     ArvoreNode* node = new ArvoreNode("IdLista");
 
-    node->children.push_back(Id());
+    node->children.push_back(Id("declaracao"));
 
     while (currentToken.token == T_VIRGULA) {
         nextStep();
-        node->children.push_back(Id());
+        node->children.push_back(Id("declaracao"));
     }
 
     return node;
 }
 
-ArvoreNode* Id() {
+ArvoreNode* Id(string escopo) {
     ArvoreNode* node = new ArvoreNode("ID", currentToken.lexema);
 
+
+    if (escopo == "declaracao") {
+        // Verifica se a variável já foi declarada
+        verificarRedeclaracao(currentToken.lexema);
+        tabelaDeSimbolos[currentToken.lexema] = currentToken.token == T_INTEIRO ? "inteiro" : "real";
+    }
     match(T_ID);
+
 
     return node;
 }
@@ -197,6 +251,7 @@ ArvoreNode* Comando() {
     while (currentToken.token == T_ID || currentToken.token == T_REPITA ||
         currentToken.token == T_MOSTRAR || currentToken.token == T_ENQUANTO ||
         currentToken.token == T_SE || currentToken.token == T_LER) {
+        
         if (currentToken.token == T_ID) {
             node->children.push_back(Atribuicao());
         }
@@ -217,20 +272,25 @@ ArvoreNode* Comando() {
         }
         else {
             error("Comando inválido");
-            return nullptr;
         }
     }
+
     return node;
 }
 
 ArvoreNode* Atribuicao() {
-    ArvoreNode* node = new ArvoreNode("Atribuicao");
+    ArvoreNode* node = new ArvoreNode("Atribuição");
 
-    node->children.push_back(new ArvoreNode("ID", currentToken.lexema));
-    match(T_ID);
+    node->children.push_back(Id("corpo"));
+
     match(T_IGUAL);
     node->children.push_back(Expressao());
     match(T_PONTO_VIRGULA);
+
+    // Verificar o tipo da variável e o tipo da expressão à direita
+    string tipoVar = tabelaDeSimbolos[node->children[0]->value];
+    verificarAtribuicao(tipoVar, node->children[1]);
+
     return node;
 }
 
@@ -257,8 +317,13 @@ ArvoreNode* Enquanto() {
     ArvoreNode* node = new ArvoreNode("Enquanto");
     match(T_ENQUANTO);
     match(T_ABRE_PARENTESES);
+
     node->children.push_back(Expressao());
+
     match(T_FECHA_PARENTESES);
+
+    //verificarExpressaoBooleana(node->children[0]);
+
     if (currentToken.token == T_ABRE_CHAVES) {
         match(T_ABRE_CHAVES);
         node->children.push_back(Comando());
@@ -273,9 +338,11 @@ ArvoreNode* Enquanto() {
 
 ArvoreNode* Condicao() {
     ArvoreNode* node = new ArvoreNode("Condicao");
+
     match(T_SE);
     node->children.push_back(Expressao());
     match(T_ENTAO);
+
     if (currentToken.token == T_ABRE_CHAVES) {
         match(T_ABRE_CHAVES);
         node->children.push_back(Comando());
@@ -320,6 +387,7 @@ ArvoreNode* Ler() {
     match(T_PONTO_VIRGULA);
     return node;
 }
+
 
 ArvoreNode* Expressao() {
     ArvoreNode* node = new ArvoreNode("Expressao");
@@ -633,8 +701,6 @@ void printToken(TokenValue tok) {
     case T_UNKNOWN: cout << "Token: T_UNKNOWN, " << tok.lexema << endl; break;
     }
 }
-
-
 int main() {
     cout << "Digite o código de entrada (insira 'FIM' para finalizar):" << endl;
 
@@ -649,7 +715,7 @@ int main() {
 
     cout << endl << endl << endl << endl;
 
-    outputFile.open("./repita.txt");
+    outputFile.open("./arvore_sintatica.txt");
 
     if (!outputFile.is_open()) {
         cout << "Erro ao abrir o arquivo de saída." << endl;
