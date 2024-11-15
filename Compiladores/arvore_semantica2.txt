@@ -1,0 +1,28 @@
+
+Programa
+  Decl
+    inteiro  a b c
+    real  comprimento altura
+  Corpo
+      Atribuição
+        a = 5.000000
+      Atribuição
+        b = 10.000000
+      Condicao a
+          MENOR (<) b
+          Mostrar a
+          Mostrar b
+      Condicao a
+          MENOR (<) b
+          Mostrar a
+      Enquanto comprimento
+          MENOR (<) 10.500000
+          Atribuição
+            a = 1.000000 + 1.000000
+          Mostrar a
+      Repeticao
+          Atribuição
+            a = a - 1.500000
+          Mostrar a
+ a
+          IGUAL IGUAL (==) 5.000000

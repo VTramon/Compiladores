@@ -1,0 +1,73 @@
+Programa : Decl
+  Decl : Tipo: inteiro
+    Tipo: inteiro
+    IdLista : ID
+      ID (a)
+      ID (b)
+      ID (c)
+    Tipo: real
+    IdLista : ID
+      ID (comprimento)
+      ID (altura)
+  Corpo : Comando
+    Comando : Atribuição
+      Atribuição : ID
+        ID (a)
+        Expressao : INTEIRO
+          INTEIRO (5.000000)
+      Atribuição : ID
+        ID (b)
+        Expressao : INTEIRO
+          INTEIRO (10.000000)
+      Condicao : Expressao
+        Expressao : ID
+          ID (a)
+          MENOR (<)
+          ID (b)
+        Comando : Mostrar
+          Mostrar : Expressao
+            Expressao : ID
+              ID (a)
+        Comando : Mostrar
+          Mostrar : Expressao
+            Expressao : ID
+              ID (b)
+      Condicao : Expressao
+        Expressao : ID
+          ID (a)
+          MENOR (<)
+          ID (b)
+        Comando : Mostrar
+          Mostrar : Expressao
+            Expressao : ID
+              ID (a)
+      Enquanto : Expressao
+        Expressao : ID
+          ID (comprimento)
+          MENOR (<)
+          REAL (10.500000)
+        Comando : Atribuição
+          Atribuição : ID
+            ID (a)
+            Expressao : INTEIRO
+              INTEIRO (1.000000)
+              MAIS (+)
+              INTEIRO (1.000000)
+          Mostrar : Expressao
+            Expressao : ID
+              ID (a)
+      Repeticao : Comando
+        Comando : Atribuição
+          Atribuição : ID
+            ID (a)
+            Expressao : ID
+              ID (a)
+              MENOS (-)
+              INTEIRO (1.000000)
+          Mostrar : Expressao
+            Expressao : ID
+              ID (a)
+        Expressao : ID
+          ID (a)
+          IGUAL IGUAL (==)
+          INTEIRO (5.000000)

@@ -42,9 +42,18 @@ unordered_map<string, string> tabelaDeSimbolos;  // variável -> tipo
 struct ArvoreNode {
     string type;
     string value;
+    string semantico;
     vector<ArvoreNode*> children;
 
-    ArvoreNode(string t, string v = "") : type(t), value(v) {}
+    ArvoreNode(string t, string v = "", string s = "") : type(t), value(v), semantico(s) {}
+};
+
+struct ArvoreSemantica {
+    string type;
+    string value;
+    vector<ArvoreSemantica*> children;
+
+    ArvoreSemantica(string t, string v = "") : type(t), value(v) {}
 };
 
 ArvoreNode* Programa();
@@ -97,7 +106,7 @@ void match(Token expectedToken) {
 }
 
 // Função para imprimir a árvore sintática no arquivo de saída
-void printArvore(ArvoreNode* node, int depth = 0) {
+void printArvoreSintatica(ArvoreNode* node, int depth = 0) {
     for (int i = 0; i < depth; ++i) {
         outputFile << "  ";
     }
@@ -111,22 +120,137 @@ void printArvore(ArvoreNode* node, int depth = 0) {
     outputFile << endl;
 
     for (ArvoreNode* child : node->children) {
-        printArvore(child, depth + 1);
+        printArvoreSintatica(child, depth + 1);
     }
 }
 
+void printArvoreSemantica(ArvoreNode* node, int depth = 0, string atrib = "") {
+    // Exibe a árvore com informações de tipo e valor
+    if (node->type == "Comando" || node->type == "Expressao") {
+        if (atrib != "") {
+            for (ArvoreNode* child : node->children) {
+                printArvoreSemantica(child, depth + 1);
+            }
+        }
+        else {
+            for (ArvoreNode* child : node->children) {
+                printArvoreSemantica(child, depth + 1);
+            }
+        }
+    }
+    else {
+
+        if (node->type == "Tipo") {
+            outputFile << endl;
+            for (int i = 0; i < depth; ++i) {
+                outputFile << "  ";
+            }
+            outputFile << node->value << " ";
+            for (ArvoreNode* child : node->children) {
+                printArvoreSemantica(child, depth + 1);
+            }
+        }
+        else if (node->type == "IdLista") {
+            for (ArvoreNode* child : node->children) {
+                printArvoreSemantica(child, depth + 1);
+            }
+        }
+        else if (node->type == "ID" || node->type == "INTEIRO" || node->type == "REAL" || 
+            node->value == "+" || node->value == "-" || node->value == "*" || node->value == "/") {
+            if (atrib == "1") {
+                outputFile << endl << endl << endl << endl;
+                for (int i = 0; i < depth; ++i) {
+                    outputFile << "  ";
+                }
+            }
+            if (atrib == "=") {
+                for (int i = 0; i < depth; ++i) {
+                    outputFile << "  ";
+                }
+                outputFile  << node->value << " =";
+            }
+            else {
+                outputFile <<  " " << node->value;
+            }
+        }
+        else if (node->type == "Atribuição") {
+            outputFile << endl;
+
+            for (int i = 0; i < depth; ++i) {
+                outputFile << "  ";
+            }
+            outputFile << node->type;
+            outputFile << endl;
+
+            for (ArvoreNode* child : node->children) {
+                printArvoreSemantica(child, depth + 1, "=");
+            }
+        }
+        else {
+            outputFile << endl;
+
+            for (int i = 0; i < depth; ++i) {
+                outputFile << "  ";
+            }
+            outputFile << node->type;
+            if (!node->value.empty()) {
+                outputFile << " (" << node->value << ")";
+            }
+
+            if (node->type == "Repeticao") {
+                for (ArvoreNode* child : node->children) {
+                    if (node->children[1] == child) {
+                        outputFile << endl << endl << endl << endl;
+                    }
+                    printArvoreSemantica(child, depth + 1);
+                }
+            }
+            else {
+                for (ArvoreNode* child : node->children) {
+                    printArvoreSemantica(child, depth + 1);
+                }
+            }
+
+        }
+
+
+        // Adiciona o tipo de dado do nó se disponível
+        //if (!node->children.empty() && node->type != "Corpo") {
+        //    outputFile << ": " << node->children[0]->type;
+        //}
+
+
+
+    }
+
+}
+
+//void printArvore(ArvoreNode* node, int depth = 0) {
+//    for (int i = 0; i < depth; ++i) {
+//        outputFile << "  ";
+//    }
+//
+//    outputFile << node->type;
+//
+//    if (!node->value.empty()) {
+//        outputFile << " (" << node->value << ")";
+//    }
+//
+//    outputFile << endl;
+//
+//    for (ArvoreNode* child : node->children) {
+//        printArvore(child, depth + 1);
+//    }
+//}
+
 // Função para verificar se uma variável foi declarada
 void verificarDeclaracao(string id) {
-    if (tabelaDeSimbolos.find(id) == tabelaDeSimbolos.end()) {
-        error("Variável '" + id + "' não foi declarada.");
-    }
+    if (tabelaDeSimbolos.find(id) == tabelaDeSimbolos.end()) error("Variável '" + id + "' não foi declarada.");
 }
 
 // Função para verificar se uma variável já foi declarada
 void verificarRedeclaracao(string id) {
-    if (tabelaDeSimbolos.find(id) != tabelaDeSimbolos.end()) {
-        error("Variável '" + id + "' já foi declarada.");
-    }
+    if (tabelaDeSimbolos.find(id) != tabelaDeSimbolos.end()) error("Variável '" + id + "' já foi declarada.");
 }
 
 // Função para verificar o tipo da expressão na atribuição
@@ -207,14 +331,29 @@ ArvoreNode* Programa() {
 
 ArvoreNode* Declaracao() {
     ArvoreNode* node = new ArvoreNode("Decl");
+    cout << '\n' << node->children.size() << '\n' << '\n';
 
     if (currentToken.token != T_INTEIRO && currentToken.token != T_REAL) {
         //cout << to_string(currentToken.token);
         error("Esperado declaração de tipo (inteiro ou real)");
     }
     while (currentToken.token == T_INTEIRO || currentToken.token == T_REAL) {
-        node->children.push_back(Tipo());
-
+        if (!node->children.empty()) {
+            node->children.push_back(Tipo());
+            for (size_t i = 1; i < node->children.size(); i++)
+            {
+                //if (node->children[i + 1]) {
+                    cout << '\n' << node->children.size() << '\n' << '\n';
+                    //node->children[i]->siblings.push_back(node->children[i + 1]);
+                //}
+            }
+        }
+        else
+        {
+            node->children.push_back(Tipo());
+        }
+        //for (size_t j = 0; j < node->children.size(); j++)
+        //    cout << '\n' << node->children[j]->siblings[0]->value << '\n' << '\n';
         nextStep();
 
         node->children.push_back(IdLista(currentToken.token));
@@ -230,7 +369,7 @@ ArvoreNode* Declaracao() {
 }
 
 ArvoreNode* Tipo() {
-    ArvoreNode* node = new ArvoreNode(currentToken.token == T_INTEIRO ? "Tipo: inteiro" : "Tipo: real");
+    ArvoreNode* node = new ArvoreNode("Tipo", currentToken.token == T_INTEIRO ? "inteiro" : "real");
 
     return node;
 }
@@ -427,6 +566,7 @@ ArvoreNode* Ler() {
 
 ArvoreNode* Expressao(string tipo) {
     ArvoreNode* node = new ArvoreNode("Expressao");
+
     if (currentToken.token == T_ID || currentToken.token == T_NUM_INTEIRO || currentToken.token == T_NUM_REAL ||
         currentToken.token == T_MAIS || currentToken.token == T_MENOS ||
         currentToken.token == T_MULT || currentToken.token == T_DIV ||
@@ -436,6 +576,11 @@ ArvoreNode* Expressao(string tipo) {
         currentToken.token == T_IGUAL_IGUAL || currentToken.token == T_DIFERENTE) {
         
         if (currentToken.token == T_ID) {
+            string tipoVar = tabelaDeSimbolos[currentToken.lexema];
+            if (tipoVar.empty()) {
+                error("Variável não declarada: " + currentToken.lexema);
+            }
+
             node->children.push_back(new ArvoreNode("ID", currentToken.lexema));
             /*node->children[0]->type*/
             match(T_ID);
@@ -468,6 +613,11 @@ ArvoreNode* Expressao(string tipo) {
 
 
         if (currentToken.token == T_ID) {
+            string tipoVar = tabelaDeSimbolos[currentToken.lexema];
+            if (tipoVar.empty()) {
+                error("Variável não declarada: " + currentToken.lexema);
+            }
+
             node->children.push_back(new ArvoreNode("ID", currentToken.lexema));
             match(T_ID);
         }
@@ -480,16 +630,16 @@ ArvoreNode* Expressao(string tipo) {
             match(T_NUM_REAL);
         }
 
-        if (tipo == "booleano") {
+
+        if (node->children.size() == 3 && tipo != "booleano") {
+            //verificarExpressaoEritimetica(node->children[0], node->children[1]->value, node->children[2]);
+        }
+
+        //if (tipo == "booleano") {
             /*if (!verificarBooleano((LPCWSTR) _T(input[posicao]))) {
                 error("Expressões contidas em funções de repetição e condição devem ser booleanas.");
             }*/
-        }
-
-        if (node->children.size() == 3) {
-            //cout << '\n' << "tem 3" << '\n';
-            verificarExpressaoEritimetica(node->children[0], node->children[1]->value, node->children[2]);
-        }
+        //}
     }
     else {
         error("Expressão inválida");
@@ -775,6 +925,8 @@ void printToken(TokenValue tok) {
     case T_UNKNOWN: cout << "Token: T_UNKNOWN, " << tok.lexema << endl; break;
     }
 }
+
+
 int main() {
     cout << "Digite o código de entrada (insira 'FIM' para finalizar):" << endl;
 
@@ -789,7 +941,7 @@ int main() {
 
     cout << endl << endl << endl << endl;
 
-    outputFile.open("./arvore_sintatica.txt");
+    outputFile.open("./arvore_semantica2.txt");
 
     if (!outputFile.is_open()) {
         cout << "Erro ao abrir o arquivo de saída." << endl;
@@ -799,10 +951,10 @@ int main() {
     nextStep();
     ArvoreNode* ast = Programa();
 
-    printArvore(ast);
+    printArvoreSemantica(ast);
 
     outputFile.close();
-    cout << "Análise sintática concluída. Veja 'arvore_sintatica.txt' para o resultado." << endl;
+    cout << "Análise sintática concluída. Veja 'arvore_sintatica2.txt' para o resultado." << endl;
 
     return 0;
 }
