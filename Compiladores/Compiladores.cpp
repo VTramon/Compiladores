@@ -3,6 +3,8 @@
 #include <fstream>
 #include <vector>
 #include <unordered_map>
+#include <tchar.h>
+#include <windows.h>
 
 using namespace std;
 
@@ -16,7 +18,7 @@ enum Token {
     T_MOSTRAR,
     T_IGUAL,
     T_ID,
-    T_NUM,
+    T_NUM_INTEIRO, T_NUM_REAL,
     T_OU, T_E,
     T_MAIOR, T_MAIOR_IGUAL, T_MENOR, T_MENOR_IGUAL, T_IGUAL_IGUAL, T_DIFERENTE,
     T_MAIS, T_MENOS, T_MULT, T_DIV,
@@ -48,7 +50,7 @@ struct ArvoreNode {
 ArvoreNode* Programa();
 ArvoreNode* Declaracao();
 ArvoreNode* Tipo();
-ArvoreNode* IdLista();
+ArvoreNode* IdLista(Token tipo);
 ArvoreNode* Id(string escopo);
 ArvoreNode* Corpo();
 ArvoreNode* Comando();
@@ -58,7 +60,7 @@ ArvoreNode* Enquanto();
 ArvoreNode* Condicao();
 ArvoreNode* Mostrar();
 ArvoreNode* Ler();
-ArvoreNode* Expressao();
+ArvoreNode* Expressao(string tipo);
 ArvoreNode* ExpressaoLogica();
 ArvoreNode* ExpressaoRelacional();
 ArvoreNode* ExpressaoAritimetica();
@@ -127,18 +129,6 @@ void verificarRedeclaracao(string id) {
     }
 }
 
-// Função para verificar se a expressão é booleana
-void verificarExpressaoBooleana(ArvoreNode* expr) {
-    if (expr->type != "Expressao" ||
-        (expr->value != "verdadeiro" && expr->value != "falso" && expr->type != "ExpressaoLogica")) {
-        error("A expressão de controle precisa ser booleana.");
-    }
-}
-
-void verificarTiposExpressao(ArvoreNode* expr) {
-
-}
-
 // Função para verificar o tipo da expressão na atribuição
 void verificarAtribuicao(string tipoVar, ArvoreNode* expressao) {
     string tipoExpr = expressao->type;
@@ -147,14 +137,58 @@ void verificarAtribuicao(string tipoVar, ArvoreNode* expressao) {
         tipoExpr = expressao->children[0]->type;
     }
 
-    if (tipoVar == "inteiro" && (tipoExpr != "NUM" && tipoExpr != "ID")) {
+    if (tipoVar == "INTEIRO" && tipoExpr != "INTEIRO" && tipoExpr != "ID") {
         error("Tipo incompatível: Esperado inteiro na expressão.");
     }
-
-    if (tipoVar == "real" && (tipoExpr != "NUM" && tipoExpr != "ID")) {
+    //cout << '\n\n' << tipoVar << '\n'<<'\n';
+    if (tipoVar == "REAL" && (tipoExpr != "REAL" && tipoExpr != "ID")) {
         error("Tipo incompatível: Esperado real ou inteiro na expressão. " + tipoExpr + " --");
     }
 }
+
+
+void verificarLerMostrar(string lex) {
+    verificarDeclaracao(lex);
+
+    if (lex == "desconhecido") {
+        error("Tipo incompatível: Esperado real ou inteiro na função 'ler()'.");
+    }
+    
+    //cout << tipo << '\n';
+    if (tabelaDeSimbolos.at(lex) != "INTEIRO" && tabelaDeSimbolos.at(lex) != "REAL") {
+        error("Tipo incompatível: Esperado real ou inteiro na função 'ler()'.");
+    }
+
+}
+
+bool verificarBooleano(string operador) {
+    //cout << operador << '\n';
+    return operador == "<" || operador == ">" || operador == "<=" || operador == ">=" || operador == "==" || operador == "!=";
+}
+
+
+void verificarExpressaoEritimetica(ArvoreNode* esquerda, string operador, ArvoreNode* direita) {
+    string tipoEsq = esquerda->type == "ID" ? tabelaDeSimbolos[esquerda->value] : esquerda->value;
+    string tipoDir = direita->type == "ID" ? tabelaDeSimbolos[direita->value] : direita->value;
+
+    //cout << '\n' << node->type << " => " << node->value << '\n' << '\n';
+    //cout << '\n' << tipoEsq << " => " << esquerda[1] << '\n' << tipoDir << " => " << direita[1] << '\n' << '\n';
+    
+    if (operador == "+" || operador == "-" || operador == "/" || operador == "*") {
+        if ((tipoEsq == "INTEIRO" || tipoEsq == "REAL") && (tipoDir == "INTEIRO" || tipoDir == "REAL")) {
+            if (operador == "/" && direita->value == "0") {
+                error("Erro: divisão por zero.");
+            }
+            if (tipoEsq != tipoDir) {
+                esquerda->type == "ID" ? tabelaDeSimbolos[esquerda->value] : esquerda->value;
+            }
+        }
+        else {
+            error("Tipos incompativeis");
+        }
+    }
+}
+
 
 ArvoreNode* Programa() {
     ArvoreNode* node = new ArvoreNode("Programa");
@@ -175,7 +209,7 @@ ArvoreNode* Declaracao() {
     ArvoreNode* node = new ArvoreNode("Decl");
 
     if (currentToken.token != T_INTEIRO && currentToken.token != T_REAL) {
-        cout << to_string(currentToken.token);
+        //cout << to_string(currentToken.token);
         error("Esperado declaração de tipo (inteiro ou real)");
     }
     while (currentToken.token == T_INTEIRO || currentToken.token == T_REAL) {
@@ -183,7 +217,7 @@ ArvoreNode* Declaracao() {
 
         nextStep();
 
-        node->children.push_back(IdLista());
+        node->children.push_back(IdLista(currentToken.token));
         match(T_PONTO_VIRGULA);
     }
 
@@ -201,27 +235,26 @@ ArvoreNode* Tipo() {
     return node;
 }
 
-ArvoreNode* IdLista() {
+ArvoreNode* IdLista(Token tipo) {
     ArvoreNode* node = new ArvoreNode("IdLista");
 
-    node->children.push_back(Id("declaracao"));
+    node->children.push_back(Id(tipo==T_NUM_REAL?"REAL":"INTEIRO"));
 
     while (currentToken.token == T_VIRGULA) {
         nextStep();
-        node->children.push_back(Id("declaracao"));
+        node->children.push_back(Id(tipo == T_NUM_REAL ? "REAL" : "INTEIRO"));
     }
 
     return node;
 }
 
-ArvoreNode* Id(string escopo) {
+ArvoreNode* Id(string tipo = "") {
     ArvoreNode* node = new ArvoreNode("ID", currentToken.lexema);
 
-
-    if (escopo == "declaracao") {
+    if (tipo == "INTEIRO" || tipo == "REAL") {
         // Verifica se a variável já foi declarada
         verificarRedeclaracao(currentToken.lexema);
-        tabelaDeSimbolos[currentToken.lexema] = currentToken.token == T_INTEIRO ? "inteiro" : "real";
+        tabelaDeSimbolos[currentToken.lexema] = tipo == "INTEIRO" ? "INTEIRO" : "REAL";
     }
     match(T_ID);
 
@@ -281,10 +314,11 @@ ArvoreNode* Comando() {
 ArvoreNode* Atribuicao() {
     ArvoreNode* node = new ArvoreNode("Atribuição");
 
-    node->children.push_back(Id("corpo"));
+    node->children.push_back(Id());
 
     match(T_IGUAL);
-    node->children.push_back(Expressao());
+
+    node->children.push_back(Expressao(""));
     match(T_PONTO_VIRGULA);
 
     // Verificar o tipo da variável e o tipo da expressão à direita
@@ -307,7 +341,7 @@ ArvoreNode* Repeticao() {
         node->children.push_back(Comando());
     }
     match(T_ATE);
-    node->children.push_back(Expressao());
+    node->children.push_back(Expressao("booleano"));
     match(T_PONTO_VIRGULA);
 
     return node;
@@ -318,7 +352,7 @@ ArvoreNode* Enquanto() {
     match(T_ENQUANTO);
     match(T_ABRE_PARENTESES);
 
-    node->children.push_back(Expressao());
+    node->children.push_back(Expressao("booleano"));
 
     match(T_FECHA_PARENTESES);
 
@@ -340,7 +374,7 @@ ArvoreNode* Condicao() {
     ArvoreNode* node = new ArvoreNode("Condicao");
 
     match(T_SE);
-    node->children.push_back(Expressao());
+    node->children.push_back(Expressao("booleano"));
     match(T_ENTAO);
 
     if (currentToken.token == T_ABRE_CHAVES) {
@@ -371,7 +405,8 @@ ArvoreNode* Mostrar() {
     ArvoreNode* node = new ArvoreNode("Mostrar");
     match(T_MOSTRAR);
     match(T_ABRE_PARENTESES);
-    node->children.push_back(Expressao());
+    verificarLerMostrar(currentToken.lexema);
+    node->children.push_back(Expressao(""));
     match(T_FECHA_PARENTESES);
     match(T_PONTO_VIRGULA);
     return node;
@@ -381,6 +416,7 @@ ArvoreNode* Ler() {
     ArvoreNode* node = new ArvoreNode("Ler");
     match(T_LER);
     match(T_ABRE_PARENTESES);
+    verificarLerMostrar(currentToken.lexema);
     node->children.push_back(new ArvoreNode("ID", currentToken.lexema));
     match(T_ID);
     match(T_FECHA_PARENTESES);
@@ -389,23 +425,28 @@ ArvoreNode* Ler() {
 }
 
 
-ArvoreNode* Expressao() {
+ArvoreNode* Expressao(string tipo) {
     ArvoreNode* node = new ArvoreNode("Expressao");
-    if (currentToken.token == T_ID || currentToken.token == T_NUM ||
+    if (currentToken.token == T_ID || currentToken.token == T_NUM_INTEIRO || currentToken.token == T_NUM_REAL ||
         currentToken.token == T_MAIS || currentToken.token == T_MENOS ||
         currentToken.token == T_MULT || currentToken.token == T_DIV ||
         currentToken.token == T_OU || currentToken.token == T_E ||
         currentToken.token == T_MAIOR || currentToken.token == T_MAIOR_IGUAL ||
         currentToken.token == T_MENOR || currentToken.token == T_MENOR_IGUAL ||
         currentToken.token == T_IGUAL_IGUAL || currentToken.token == T_DIFERENTE) {
-
+        
         if (currentToken.token == T_ID) {
             node->children.push_back(new ArvoreNode("ID", currentToken.lexema));
+            /*node->children[0]->type*/
             match(T_ID);
         }
-        else if (currentToken.token == T_NUM) {
-            node->children.push_back(new ArvoreNode("NUM", to_string(currentToken.value)));
-            match(T_NUM);
+        else if (currentToken.token == T_NUM_INTEIRO ) {
+            node->children.push_back(new ArvoreNode("INTEIRO", to_string(currentToken.value)));
+            match(T_NUM_INTEIRO);
+        }
+        else if (currentToken.token == T_NUM_REAL) {
+            node->children.push_back(new ArvoreNode("REAL", to_string(currentToken.value)));
+            match(T_NUM_REAL);
         }
 
 
@@ -419,6 +460,9 @@ ArvoreNode* Expressao() {
         else if (currentToken.token == T_MAIOR || currentToken.token == T_MAIOR_IGUAL ||
             currentToken.token == T_MENOR || currentToken.token == T_MENOR_IGUAL ||
             currentToken.token == T_IGUAL_IGUAL || currentToken.token == T_DIFERENTE) {
+
+            verificarBooleano(currentToken.lexema);
+
             node->children.push_back(ExpressaoRelacional());
         }
 
@@ -427,9 +471,24 @@ ArvoreNode* Expressao() {
             node->children.push_back(new ArvoreNode("ID", currentToken.lexema));
             match(T_ID);
         }
-        else if (currentToken.token == T_NUM) {
-            node->children.push_back(new ArvoreNode("NUM", to_string(currentToken.value)));
-            match(T_NUM);
+        else if (currentToken.token == T_NUM_INTEIRO) {
+            node->children.push_back(new ArvoreNode("INTEIRO", to_string(currentToken.value)));
+            match(T_NUM_INTEIRO);
+        }
+        else if (currentToken.token == T_NUM_REAL) {
+            node->children.push_back(new ArvoreNode("REAL", to_string(currentToken.value)));
+            match(T_NUM_REAL);
+        }
+
+        if (tipo == "booleano") {
+            /*if (!verificarBooleano((LPCWSTR) _T(input[posicao]))) {
+                error("Expressões contidas em funções de repetição e condição devem ser booleanas.");
+            }*/
+        }
+
+        if (node->children.size() == 3) {
+            //cout << '\n' << "tem 3" << '\n';
+            verificarExpressaoEritimetica(node->children[0], node->children[1]->value, node->children[2]);
         }
     }
     else {
@@ -611,9 +670,9 @@ TokenValue getNextToken() {
 
     if (isdigit(input[posicao]) || (input[posicao] == '-' && isdigit(input[posicao + 1]))) {
         bool isNegative = false;
+        bool isReal = false;
         tok.lexema = "";
 
-        tok.token = T_NUM;
 
         if (input[posicao] == '-') {
             isNegative = true;
@@ -623,10 +682,23 @@ TokenValue getNextToken() {
 
         tok.value = 0;
         while (isdigit(input[posicao])) {
+
             tok.lexema += input[posicao];
             tok.value = tok.value * 10 + (input[posicao] - '0');
             posicao++;
         }
+        if (input[posicao] == '.') {
+            isReal = true;
+            tok.lexema += ".";
+            posicao++;
+        }
+        while (isdigit(input[posicao])) {
+            tok.lexema += input[posicao];
+            //tok.value = tok.value * 10 + ((input[posicao] - '0') / 10);
+            posicao++;
+        }
+        tok.value = stod(tok.lexema);
+        tok.token = isReal ? T_NUM_REAL : T_NUM_INTEIRO;
 
         printToken(tok);
 
@@ -656,8 +728,8 @@ TokenValue getNextToken() {
 
     // Caractere desconhecido
     tok.token = T_UNKNOWN;
-    tok.lexema = input[posicao];
-    printToken(tok);
+    tok.lexema = "desconhecido";
+    //printToken(tok);
     posicao++;
     return tok;
 }
@@ -677,7 +749,9 @@ void printToken(TokenValue tok) {
     case T_MOSTRAR: cout << "Token: T_MOSTRAR, " << tok.lexema << endl; break;
     case T_LER: cout << "Token: T_LER, " << tok.lexema << endl; break;
     case T_ID: cout << "Token: T_ID, " << tok.lexema << endl; break;
-    case T_NUM: cout << "Token: T_NUM, " << tok.lexema << ", Valor: " << tok.value << endl; break;
+    //case T_NUM: cout << "Token: T_NUM, " << tok.lexema << ", Valor: " << tok.value << endl; break;
+    case T_NUM_REAL: cout << "Token: T_NUM_REAL, " << tok.lexema << ", Valor: " << tok.value << endl; break;
+    case T_NUM_INTEIRO: cout << "Token: T_NUM_INTEIRO, " << tok.lexema << ", Valor: " << tok.value << endl; break;
     case T_IGUAL: cout << "Token: T_IGUAL, " << tok.lexema << endl; break;
     case T_IGUAL_IGUAL: cout << "Token: T_IGUAL_IGUAL, " << tok.lexema << endl; break;
     case T_DIFERENTE: cout << "Token: T_DIFERENTE, " << tok.lexema << endl; break;
