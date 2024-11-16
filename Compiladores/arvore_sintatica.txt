@@ -1,11 +1,11 @@
 Programa
   Decl
-    Tipo: inteiro
+    Tipo (inteiro)
     IdLista
       ID (a)
       ID (b)
       ID (c)
-    Tipo: real
+    Tipo (real)
     IdLista
       ID (comprimento)
       ID (altura)
@@ -50,9 +50,9 @@ Programa
           Atribuição
             ID (a)
             Expressao
-              ID (a)
+              INTEIRO (1.000000)
               MAIS (+)
-              REAL (1.500000)
+              INTEIRO (1.000000)
           Mostrar
             Expressao
               ID (a)

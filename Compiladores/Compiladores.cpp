@@ -48,18 +48,11 @@ struct ArvoreNode {
     ArvoreNode(string t, string v = "", string s = "") : type(t), value(v), semantico(s) {}
 };
 
-struct ArvoreSemantica {
-    string type;
-    string value;
-    vector<ArvoreSemantica*> children;
-
-    ArvoreSemantica(string t, string v = "") : type(t), value(v) {}
-};
 
 ArvoreNode* Programa();
 ArvoreNode* Declaracao();
 ArvoreNode* Tipo();
-ArvoreNode* IdLista(Token tipo);
+ArvoreNode* IdLista(string tipo);
 ArvoreNode* Id(string escopo);
 ArvoreNode* Corpo();
 ArvoreNode* Comando();
@@ -69,7 +62,7 @@ ArvoreNode* Enquanto();
 ArvoreNode* Condicao();
 ArvoreNode* Mostrar();
 ArvoreNode* Ler();
-ArvoreNode* Expressao(string tipo);
+ArvoreNode* Expressao(string tipo, string tipoParent);
 ArvoreNode* ExpressaoLogica();
 ArvoreNode* ExpressaoRelacional();
 ArvoreNode* ExpressaoAritimetica();
@@ -82,7 +75,9 @@ void printToken(TokenValue tok);
 string input;
 size_t posicao = 0;
 TokenValue currentToken;
-ofstream outputFile;
+ofstream outputSintFile;
+ofstream outputSemFile;
+ofstream outputASFile;
 
 // Avança para o próximo token
 void nextStep() {
@@ -108,28 +103,49 @@ void match(Token expectedToken) {
 // Função para imprimir a árvore sintática no arquivo de saída
 void printArvoreSintatica(ArvoreNode* node, int depth = 0) {
     for (int i = 0; i < depth; ++i) {
-        outputFile << "  ";
+        outputSintFile << "  ";
     }
 
-    outputFile << node->type;
+    outputSintFile << node->type;
 
     if (!node->value.empty()) {
-        outputFile << " (" << node->value << ")";
+        outputSintFile << " (" << node->value << ")";
     }
 
-    outputFile << endl;
+    outputSintFile << endl;
 
     for (ArvoreNode* child : node->children) {
         printArvoreSintatica(child, depth + 1);
     }
 }
 
+bool firstComando = false;
 void printArvoreSemantica(ArvoreNode* node, int depth = 0, string atrib = "") {
     // Exibe a árvore com informações de tipo e valor
-    if (node->type == "Comando" || node->type == "Expressao") {
-        if (atrib != "") {
+
+    if (node->type == "Comando") {
+        if (firstComando == false) {
+            firstComando = true;
             for (ArvoreNode* child : node->children) {
                 printArvoreSemantica(child, depth + 1);
+            }
+        }
+        else {
+            for (size_t i = 0; i < node->children.size(); i++)
+            {
+                printArvoreSemantica(node->children[i], depth + 1 + i);
+            }
+        }
+    }else
+    if (node->type == "Expressao") {
+        if (atrib == "ate") {
+            for (ArvoreNode* child : node->children) {
+                if (node->children[0] == child) {
+                    printArvoreSemantica(child, depth + 1, atrib);
+                }
+                else {
+                    printArvoreSemantica(child, depth + 1);
+                }
             }
         }
         else {
@@ -141,11 +157,11 @@ void printArvoreSemantica(ArvoreNode* node, int depth = 0, string atrib = "") {
     else {
 
         if (node->type == "Tipo") {
-            outputFile << endl;
+            outputSemFile << endl;
             for (int i = 0; i < depth; ++i) {
-                outputFile << "  ";
+                outputSemFile << "  ";
             }
-            outputFile << node->value << " ";
+            outputSemFile << node->value << " ";
             for (ArvoreNode* child : node->children) {
                 printArvoreSemantica(child, depth + 1);
             }
@@ -155,54 +171,72 @@ void printArvoreSemantica(ArvoreNode* node, int depth = 0, string atrib = "") {
                 printArvoreSemantica(child, depth + 1);
             }
         }
-        else if (node->type == "ID" || node->type == "INTEIRO" || node->type == "REAL" || 
-            node->value == "+" || node->value == "-" || node->value == "*" || node->value == "/") {
-            if (atrib == "1") {
-                outputFile << endl << endl << endl << endl;
+        else if (node->type == "ID" || node->type == "INTEIRO" || node->type == "REAL" || node->value == "==" ||
+            node->value == "+" || node->value == "-" || node->value == "*" || node->value == "/" || node->value == "<" ||
+            node->value == "<=" || node->value == ">" || node->value == ">=" || node->value == "!=") {
+            if (atrib == "ate") {
+            //outputFile << endl << node->type << " " << node->value ;
+                outputSemFile << endl;
                 for (int i = 0; i < depth; ++i) {
-                    outputFile << "  ";
+                    outputSemFile << "  ";
                 }
-            }
+                outputSemFile << node->value;
+                //outputFile << endl << endl << endl << endl;
+            }else
             if (atrib == "=") {
                 for (int i = 0; i < depth; ++i) {
-                    outputFile << "  ";
+                    outputSemFile << "  ";
                 }
-                outputFile  << node->value << " =";
+                outputSemFile << node->value << " =";
+            }
+            else if (node->type == "INTEIRO") {
+                outputSemFile << " " << (int) stod(node->value);
+            }
+            else if (node->type == "REAL") {
+                outputSemFile << " " << nextafter(stod(node->value), 0.00);
             }
             else {
-                outputFile <<  " " << node->value;
+                outputSemFile <<  " " << node->value;
             }
         }
         else if (node->type == "Atribuição") {
-            outputFile << endl;
+            outputSemFile << endl;
 
-            for (int i = 0; i < depth; ++i) {
-                outputFile << "  ";
-            }
-            outputFile << node->type;
-            outputFile << endl;
+            //for (int i = 0; i < depth; ++i) {
+            //    outputFile << "  ";
+            //}
+            //outputFile << node->type;
+            //outputFile << endl;
 
             for (ArvoreNode* child : node->children) {
                 printArvoreSemantica(child, depth + 1, "=");
             }
         }
         else {
-            outputFile << endl;
+            outputSemFile << endl;
 
             for (int i = 0; i < depth; ++i) {
-                outputFile << "  ";
+                outputSemFile << "  ";
             }
-            outputFile << node->type;
+            outputSemFile << node->type;
             if (!node->value.empty()) {
-                outputFile << " (" << node->value << ")";
+                outputSemFile << " (" << node->value << ")";
             }
 
-            if (node->type == "Repeticao") {
+            if (node->type == "Repeticao" || node->type == "Enquanto") {
                 for (ArvoreNode* child : node->children) {
-                    if (node->children[1] == child) {
-                        outputFile << endl << endl << endl << endl;
+
+                    if ((node->type == "Repeticao" && node->children[1] == child) || 
+                        (node->type == "Enquanto" && node->children[0] == child)) {
+                        //outputFile << "endl";
+                        //for (int i = 0; i < (depth + 2); ++i) {
+                        //    outputFile << "  ";
+                        //}
+                        printArvoreSemantica(child, depth + 1, "ate");
                     }
-                    printArvoreSemantica(child, depth + 1);
+                    else {
+                        printArvoreSemantica(child, depth + 1);
+                    }
                 }
             }
             else {
@@ -225,6 +259,12 @@ void printArvoreSemantica(ArvoreNode* node, int depth = 0, string atrib = "") {
 
 }
 
+
+void printTabelaDeSimbolos() {
+    for (auto value : tabelaDeSimbolos) {
+        outputASFile << value.first << ": " << value.second << endl;
+    }
+}
 //void printArvore(ArvoreNode* node, int depth = 0) {
 //    for (int i = 0; i < depth; ++i) {
 //        outputFile << "  ";
@@ -274,12 +314,13 @@ void verificarAtribuicao(string tipoVar, ArvoreNode* expressao) {
 void verificarLerMostrar(string lex) {
     verificarDeclaracao(lex);
 
-    if (lex == "desconhecido") {
-        error("Tipo incompatível: Esperado real ou inteiro na função 'ler()'.");
-    }
-    
+    //if (lex == "desconhecido") {
+    //    error("Tipo incompatível: Esperado real ou inteiro na função.");
+    //}
+    //cout << endl << tabelaDeSimbolos.at(lex) << endl << endl;
+
     //cout << tipo << '\n';
-    if (tabelaDeSimbolos.at(lex) != "INTEIRO" && tabelaDeSimbolos.at(lex) != "REAL") {
+    if (tabelaDeSimbolos.at(lex) != "inteiro" && tabelaDeSimbolos.at(lex) != "real") {
         error("Tipo incompatível: Esperado real ou inteiro na função 'ler()'.");
     }
 
@@ -291,24 +332,30 @@ bool verificarBooleano(string operador) {
 }
 
 
-void verificarExpressaoEritimetica(ArvoreNode* esquerda, string operador, ArvoreNode* direita) {
-    string tipoEsq = esquerda->type == "ID" ? tabelaDeSimbolos[esquerda->value] : esquerda->value;
-    string tipoDir = direita->type == "ID" ? tabelaDeSimbolos[direita->value] : direita->value;
+Token verificarExpressaoEritimetica(ArvoreNode* esquerda, string operador, ArvoreNode* direita) {
+    string tipoEsq = esquerda->type == "ID" ? tabelaDeSimbolos[esquerda->value] : esquerda->type;
+    string tipoDir = direita->type == "ID" ? tabelaDeSimbolos[direita->value] : direita->type;
 
     //cout << '\n' << node->type << " => " << node->value << '\n' << '\n';
     //cout << '\n' << tipoEsq << " => " << esquerda[1] << '\n' << tipoDir << " => " << direita[1] << '\n' << '\n';
-    
+
     if (operador == "+" || operador == "-" || operador == "/" || operador == "*") {
-        if ((tipoEsq == "INTEIRO" || tipoEsq == "REAL") && (tipoDir == "INTEIRO" || tipoDir == "REAL")) {
+        if ((tipoEsq == "inteiro" || tipoEsq == "real" || tipoEsq == "INTEIRO" || tipoEsq == "REAL") &&
+            (tipoDir == "inteiro" || tipoDir == "real" || tipoDir == "INTEIRO" || tipoDir == "REAL")) {
             if (operador == "/" && direita->value == "0") {
                 error("Erro: divisão por zero.");
+                return T_UNKNOWN;
             }
-            if (tipoEsq != tipoDir) {
+            if (((tipoEsq == "inteiro" || tipoEsq == "INTEIRO") && (tipoDir == "real" || tipoDir == "REAL")) || 
+                (tipoEsq == "real" || tipoEsq == "REAL") && (tipoDir == "inteiro" || tipoDir == "INTEIRO")) {
                 esquerda->type == "ID" ? tabelaDeSimbolos[esquerda->value] : esquerda->value;
+                return T_REAL;
             }
+            return T_INTEIRO;
         }
         else {
             error("Tipos incompativeis");
+            return T_UNKNOWN;
         }
     }
 }
@@ -331,32 +378,34 @@ ArvoreNode* Programa() {
 
 ArvoreNode* Declaracao() {
     ArvoreNode* node = new ArvoreNode("Decl");
-    cout << '\n' << node->children.size() << '\n' << '\n';
+    //cout << '\n' << node->children.size() << '\n' << '\n';
 
     if (currentToken.token != T_INTEIRO && currentToken.token != T_REAL) {
         //cout << to_string(currentToken.token);
         error("Esperado declaração de tipo (inteiro ou real)");
     }
     while (currentToken.token == T_INTEIRO || currentToken.token == T_REAL) {
-        if (!node->children.empty()) {
+        //if (!node->children.empty()) {
+        //    node->children.push_back(Tipo());
+        //    for (size_t i = 1; i < node->children.size(); i++)
+        //    {
+        //        //if (node->children[i + 1]) {
+        //            //cout << '\n' << node->children.size() << '\n' << '\n';
+        //            //node->children[i]->siblings.push_back(node->children[i + 1]);
+        //        //}
+        //    }
+        //}
+        //else
+        //{
             node->children.push_back(Tipo());
-            for (size_t i = 1; i < node->children.size(); i++)
-            {
-                //if (node->children[i + 1]) {
-                    cout << '\n' << node->children.size() << '\n' << '\n';
-                    //node->children[i]->siblings.push_back(node->children[i + 1]);
-                //}
-            }
-        }
-        else
-        {
-            node->children.push_back(Tipo());
-        }
+
+            string tipoDeclaracao = currentToken.lexema;
+            //}
         //for (size_t j = 0; j < node->children.size(); j++)
         //    cout << '\n' << node->children[j]->siblings[0]->value << '\n' << '\n';
         nextStep();
 
-        node->children.push_back(IdLista(currentToken.token));
+        node->children.push_back(IdLista(tipoDeclaracao));
         match(T_PONTO_VIRGULA);
     }
 
@@ -374,14 +423,14 @@ ArvoreNode* Tipo() {
     return node;
 }
 
-ArvoreNode* IdLista(Token tipo) {
+ArvoreNode* IdLista(string tipo) {
     ArvoreNode* node = new ArvoreNode("IdLista");
 
-    node->children.push_back(Id(tipo==T_NUM_REAL?"REAL":"INTEIRO"));
+    node->children.push_back(Id(tipo));
 
     while (currentToken.token == T_VIRGULA) {
         nextStep();
-        node->children.push_back(Id(tipo == T_NUM_REAL ? "REAL" : "INTEIRO"));
+        node->children.push_back(Id(tipo));
     }
 
     return node;
@@ -390,11 +439,12 @@ ArvoreNode* IdLista(Token tipo) {
 ArvoreNode* Id(string tipo = "") {
     ArvoreNode* node = new ArvoreNode("ID", currentToken.lexema);
 
-    if (tipo == "INTEIRO" || tipo == "REAL") {
+    if (tipo == "inteiro" || tipo == "real") {
         // Verifica se a variável já foi declarada
         verificarRedeclaracao(currentToken.lexema);
-        tabelaDeSimbolos[currentToken.lexema] = tipo == "INTEIRO" ? "INTEIRO" : "REAL";
+        tabelaDeSimbolos[currentToken.lexema] = tipo == "inteiro" ? "inteiro" : "real";
     }
+    //cout << endl << tabelaDeSimbolos[currentToken.lexema] << endl << endl;
     match(T_ID);
 
 
@@ -457,11 +507,12 @@ ArvoreNode* Atribuicao() {
 
     match(T_IGUAL);
 
-    node->children.push_back(Expressao(""));
-    match(T_PONTO_VIRGULA);
-
     // Verificar o tipo da variável e o tipo da expressão à direita
     string tipoVar = tabelaDeSimbolos[node->children[0]->value];
+
+    node->children.push_back(Expressao("Atribuicao", tipoVar));
+    match(T_PONTO_VIRGULA);
+
     verificarAtribuicao(tipoVar, node->children[1]);
 
     return node;
@@ -480,7 +531,7 @@ ArvoreNode* Repeticao() {
         node->children.push_back(Comando());
     }
     match(T_ATE);
-    node->children.push_back(Expressao("booleano"));
+    node->children.push_back(Expressao("booleano", ""));
     match(T_PONTO_VIRGULA);
 
     return node;
@@ -491,7 +542,7 @@ ArvoreNode* Enquanto() {
     match(T_ENQUANTO);
     match(T_ABRE_PARENTESES);
 
-    node->children.push_back(Expressao("booleano"));
+    node->children.push_back(Expressao("booleano",""));
 
     match(T_FECHA_PARENTESES);
 
@@ -513,7 +564,7 @@ ArvoreNode* Condicao() {
     ArvoreNode* node = new ArvoreNode("Condicao");
 
     match(T_SE);
-    node->children.push_back(Expressao("booleano"));
+    node->children.push_back(Expressao("booleano", ""));
     match(T_ENTAO);
 
     if (currentToken.token == T_ABRE_CHAVES) {
@@ -545,7 +596,7 @@ ArvoreNode* Mostrar() {
     match(T_MOSTRAR);
     match(T_ABRE_PARENTESES);
     verificarLerMostrar(currentToken.lexema);
-    node->children.push_back(Expressao(""));
+    node->children.push_back(Expressao("", ""));
     match(T_FECHA_PARENTESES);
     match(T_PONTO_VIRGULA);
     return node;
@@ -564,7 +615,7 @@ ArvoreNode* Ler() {
 }
 
 
-ArvoreNode* Expressao(string tipo) {
+ArvoreNode* Expressao(string tipo, string tipoParent = "") {
     ArvoreNode* node = new ArvoreNode("Expressao");
 
     if (currentToken.token == T_ID || currentToken.token == T_NUM_INTEIRO || currentToken.token == T_NUM_REAL ||
@@ -612,6 +663,7 @@ ArvoreNode* Expressao(string tipo) {
         }
 
 
+
         if (currentToken.token == T_ID) {
             string tipoVar = tabelaDeSimbolos[currentToken.lexema];
             if (tipoVar.empty()) {
@@ -632,7 +684,19 @@ ArvoreNode* Expressao(string tipo) {
 
 
         if (node->children.size() == 3 && tipo != "booleano") {
-            //verificarExpressaoEritimetica(node->children[0], node->children[1]->value, node->children[2]);
+            Token verificaTipo = verificarExpressaoEritimetica(node->children[0], node->children[1]->value, node->children[2]);
+            
+            //cout << endl << tipoParent << " || " << verificaTipo << endl << endl;
+
+            if (tipo == "Atribuicao" && 
+                ((verificaTipo == T_INTEIRO && (tipoParent == "REAL" || tipoParent == "real")) || (verificaTipo == T_REAL && (tipoParent == "INTEIRO" || tipoParent == "inteiro")))) {
+                error("Atribuição de tipos incompativeis");
+            }
+            //if (tipo == "Atribuicao" && (node->children[1]->type == "MENOS" || node->children[1]->type == "MAIS" 
+            //    || node->children[1]->type == "MULT" || node->children[1]->type == "DIV")) {
+            //    cout << endl << tabelaDeSimbolos[node->children[1]->value] << endl << endl;
+            //    
+            //}
         }
 
         //if (tipo == "booleano") {
@@ -941,10 +1005,22 @@ int main() {
 
     cout << endl << endl << endl << endl;
 
-    outputFile.open("./arvore_semantica2.txt");
+    outputSemFile.open("./arvore_semantica.txt");
+    outputSintFile.open("./arvore_sintatica.txt");
+    outputASFile.open("./arvore_de_simbolos.txt");
 
-    if (!outputFile.is_open()) {
-        cout << "Erro ao abrir o arquivo de saída." << endl;
+    if (!outputSemFile.is_open()) {
+        cout << "Erro ao abrir o arquivo de saída da arvore semantica." << endl;
+        return 1;
+    }
+
+    if (!outputSintFile.is_open()) {
+        cout << "Erro ao abrir o arquivo de saída da arvore sintatica." << endl;
+        return 1;
+    }
+
+    if (!outputASFile.is_open()) {
+        cout << "Erro ao abrir o arquivo de saída da tabela de simbolos." << endl;
         return 1;
     }
 
@@ -952,9 +1028,14 @@ int main() {
     ArvoreNode* ast = Programa();
 
     printArvoreSemantica(ast);
+    printArvoreSintatica(ast);
+    printTabelaDeSimbolos();
 
-    outputFile.close();
-    cout << "Análise sintática concluída. Veja 'arvore_sintatica2.txt' para o resultado." << endl;
+    outputSemFile.close();
+    outputSintFile.close();
+    outputASFile.close();
+
+    cout << "Análise sintática concluída. Veja 'arvore_sintatica.txt', 'arvore_semantica.txt' e 'tabela_de_simbolos.txt' para o resultado." << endl;
 
     return 0;
 }

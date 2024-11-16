@@ -1,0 +1,5 @@
+a: inteiro
+b: inteiro
+c: inteiro
+comprimento: real
+altura: real
